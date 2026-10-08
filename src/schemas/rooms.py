@@ -1,26 +1,35 @@
-from pydantic import BaseModel
+from typing import Annotated
+
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from src.schemas.comforts import Comfort
 
+RoomTitle = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)]
+RoomDescription = Annotated[str, StringConstraints(max_length=2000)]
+Price = Annotated[int, Field(ge=0)]
+Quantity = Annotated[int, Field(ge=1)]
+
 
 class RoomAddRequest(BaseModel):
-    title: str
-    description: str | None = None
-    price: int
-    quantity: int
+    title: RoomTitle
+    description: RoomDescription | None = None
+    price: Price
+    quantity: Quantity
     comforts_ids: list[int] = []
 
 
 class RoomAdd(BaseModel):
     hotel_id: int
-    title: str
-    description: str | None = None
-    price: int
-    quantity: int
+    title: RoomTitle
+    description: RoomDescription | None = None
+    price: Price
+    quantity: Quantity
 
 
 class Room(RoomAdd):
     id: int
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class RoomWithRelations(Room):
@@ -28,16 +37,15 @@ class RoomWithRelations(Room):
 
 
 class RoomPatchRequest(BaseModel):
-    title: str | None = None
-    description: str | None = None
-    price: int | None = None
-    quantity: int | None = None
-    comforts_ids: list[int] = []
+    title: RoomTitle | None = None
+    description: RoomDescription | None = None
+    price: Price | None = None
+    quantity: Quantity | None = None
+    comforts_ids: list[int] | None = None
 
 
 class RoomPatch(BaseModel):
-    hotel_id: int | None = None
-    title: str | None = None
-    description: str | None = None
-    price: int | None = None
-    quantity: int | None = None
+    title: RoomTitle | None = None
+    description: RoomDescription | None = None
+    price: Price | None = None
+    quantity: Quantity | None = None

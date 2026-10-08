@@ -1,32 +1,105 @@
+# Полный стек HotBook: docker compose up -d --build
+# Переменные берутся из .env (шаблон — .env.example).
+
+x-app: &app
+  image: hotbook:latest
+  build: .
+  env_file: .env
+  environment:
+    DB_HOST: db
+    DB_PORT: 5432
+    REDIS_HOST: redis
+    REDIS_PORT: 6379
+    MEDIA_DIR: /app/media
+  restart: unless-stopped
+  depends_on:
+    db:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+
 services:
-  booking_back_service:
-    container_name: 'booking_back'
-    build:
-      context: .
-  # ports:
-  #   - "7777:8000"
-    networks:
-      - myNetwork
-    env_file:
-      - .env
-  booking_celery_worker_service:
-    container_name: 'booking_celery_worker'
-    build:
-      context: .
-    networks:
-      - myNetwork
-    env_file:
-      - .env
-    command: "celery --app=src.tasks.celery_app:celery_manager worker -l INFO"
-  booking_celery_beat_service:
-    container_name: 'booking_celery_beat'
-    build:
-      context: .
-    networks:
-      - myNetwork
-    env_file:
-      - .env
-    command: "celery --app=src.tasks.celery_app:celery_manager beat -l INFO"
-networks:
-  myNetwork:
-    external: true
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS}
+      POSTGRES_DB: ${DB_NAME}
+    volumes:
+      - pg-booking-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7.4
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  migrations:
+    <<: *app
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+    healthcheck:
+      disable: true
+
+  api:
+    <<: *app
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    volumes:
+      - media:/app/media
+
+  celery_worker:
+    <<: *app
+    command: ["celery", "--app=src.tasks.celery_app:celery_manager", "worker", "-l", "INFO"]
+    volumes:
+      - media:/app/media
+    healthcheck:
+      disable: true
+
+  celery_beat:
+    <<: *app
+    command:
+      - celery
+      - --app=src.tasks.celery_app:celery_manager
+      - beat
+      - -l
+      - INFO
+      - --schedule=/tmp/celerybeat-schedule
+    healthcheck:
+      disable: true
+
+  nginx:
+    image: nginx:1.28-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - /var/www/certbot:/var/www/certbot:ro
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  # Имя совпадает с томом из прежней инструкции (docker run --volume pg-booking-data:...),
+  # поэтому существующие данные подхватятся без переноса.
+  pg-booking-data:
+    name: pg-booking-data
+  redis-data:
+  media:

@@ -1,2 +1,80 @@
+[project]
+name = "hotbook"
+version = "1.0.0"
+description = "HotBook — сервис бронирования номеров в отелях"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "alembic>=1.20.0",
+    "asyncpg>=0.32.0",
+    "celery[redis]>=5.6.3",
+    "email-validator>=2.3.0",
+    "fastapi>=0.143.0",
+    "fastapi-cache2>=0.2.2",
+    "jinja2>=3.1.6",  # нужен fastapi-cache2 при импорте (starlette.templating)
+    "pillow>=12.3.0",
+    "prometheus-fastapi-instrumentator>=8.1.0",
+    "pwdlib[argon2,bcrypt]>=0.3.1",
+    "pydantic>=2.14.0",
+    "pydantic-settings>=2.15.0",
+    "pyjwt>=2.15.1",
+    "python-multipart>=0.0.32",
+    "redis>=6.4.0",
+    "sentry-sdk>=2.71.0",
+    "sqlalchemy[asyncio]>=2.1.4",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "pytest-cov>=7.1.0",
+    "pytest-dotenv>=0.5.2",
+    "ruff>=0.16.10",
+    "ty>=0.0.85",
+]
+
+[tool.uv]
+package = false
+
 [tool.ruff]
 line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "ASYNC", "S", "RUF", "FAST"]
+ignore = [
+    "RUF001", # кириллица в строках — это нормально
+    "RUF002",
+    "RUF003",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106"]
+"src/migrations/**" = ["E501"]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Body", "fastapi.File"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+env_files = [".env-test"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+addopts = "-p no:cacheprovider"
+
+[tool.coverage.run]
+source = ["src"]
+omit = ["src/migrations/*"]
+concurrency = ["greenlet", "thread"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+
+[tool.ty.environment]
+python-version = "3.13"

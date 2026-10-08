@@ -1,12 +1,20 @@
-from pydantic import BaseModel
+from typing import Annotated
+
+from pydantic import BaseModel, ConfigDict, StringConstraints
+
+ComfortTitle = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)
+]
 
 
 class ComfortAdd(BaseModel):
-    title: str
+    title: ComfortTitle
 
 
 class Comfort(ComfortAdd):
     id: int
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class RoomComfortAdd(BaseModel):

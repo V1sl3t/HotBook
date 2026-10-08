@@ -1,35 +1,40 @@
-from typing import Sequence
+from collections.abc import Iterable
 
-from sqlalchemy import select, delete, insert
+from sqlalchemy import delete, insert, select
 
 from src.models.comforts import ComfortsOrm, RoomsComfortsOrm
 from src.repositories.base import BaseRepository
-from src.repositories.mappers.mappers import ComfortDataMapper
-from src.schemas.comforts import RoomComfort
+from src.repositories.mappers.mappers import ComfortDataMapper, RoomComfortDataMapper
 
 
 class ComfortsRepository(BaseRepository):
     model = ComfortsOrm
     mapper = ComfortDataMapper
 
+    async def get_existing_ids(self, ids: Iterable[int]) -> set[int]:
+        query = select(ComfortsOrm.id).filter(ComfortsOrm.id.in_(list(ids)))
+        return set((await self.session.execute(query)).scalars().all())
+
 
 class RoomsComfortsRepository(BaseRepository):
-    model: RoomsComfortsOrm = RoomsComfortsOrm
-    schema = RoomComfort
+    model = RoomsComfortsOrm
+    mapper = RoomComfortDataMapper
 
-    async def set_room_comforts(self, room_id: int, comforts_ids: list[int]) -> None:
-        get_current_comforts_ids = select(self.model.comfort_id).filter_by(room_id=room_id)
-        res = await self.session.execute(get_current_comforts_ids)
-        current_comforts_ids: Sequence[int] = res.scalars().all()
-        ids_to_delete: list[int] = list(set(current_comforts_ids) - set(comforts_ids))
-        ids_to_insert: list[int] = list(set(comforts_ids) - set(current_comforts_ids))
-        if ids_to_delete:
-            delete_rooms_comforts = delete(self.model).filter( # type: ignore
-                self.model.room_id == room_id, self.model.comfort_id.in_(ids_to_delete) # type: ignore
+    async def set_room_comforts(self, room_id: int, comforts_ids: Iterable[int]) -> None:
+        wanted = set(comforts_ids)
+        query = select(RoomsComfortsOrm.comfort_id).filter_by(room_id=room_id)
+        current = set((await self.session.execute(query)).scalars().all())
+
+        if ids_to_delete := current - wanted:
+            await self.session.execute(
+                delete(RoomsComfortsOrm).filter(
+                    RoomsComfortsOrm.room_id == room_id,
+                    RoomsComfortsOrm.comfort_id.in_(ids_to_delete),
+                )
             )
-            await self.session.execute(delete_rooms_comforts)
-        if ids_to_insert:
-            insert_rooms_comforts = insert(self.model).values( # type: ignore
-                [{"room_id": room_id, "comfort_id": f_id} for f_id in ids_to_insert]
+        if ids_to_insert := wanted - current:
+            await self._execute_write(
+                insert(RoomsComfortsOrm).values(
+                    [{"room_id": room_id, "comfort_id": c_id} for c_id in sorted(ids_to_insert)]
+                )
             )
-            await self.session.execute(insert_rooms_comforts)

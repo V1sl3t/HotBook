@@ -1,6 +1,21 @@
-venv
-.idea
-__pycache__
+# Python / uv
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# Инструменты
+.idea/
+.vscode/
+.pytest_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Секреты (.env-test — только тестовые значения, он в репозитории)
 .env
-celerybeat-schedule.db
-.env-test
+
+# Рантайм
+media/
+celerybeat-schedule*

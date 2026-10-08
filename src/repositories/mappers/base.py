@@ -1,22 +1,18 @@
-from typing import TypeVar, Type
+from typing import Any, ClassVar
 
 from pydantic import BaseModel
-from sqlalchemy import Row, RowMapping
 
 from src.db import Base
 
 
-SchemaType = TypeVar("SchemaType", bound=BaseModel)
-
-
-class DataMapper:
-    db_model: Type[Base]
-    schema: Type[SchemaType]
+class DataMapper[DBModel: Base, Schema: BaseModel]:
+    db_model: ClassVar[type[Any]]
+    schema: ClassVar[type[Any]]
 
     @classmethod
-    def map_to_domain_entity(cls, data: Base | dict | Row | RowMapping) -> BaseModel:
+    def map_to_domain_entity(cls, data: Any) -> Any:
         return cls.schema.model_validate(data, from_attributes=True)
 
     @classmethod
-    def map_to_persistence_entity(cls, data: BaseModel) -> Base:
+    def map_to_persistence_entity(cls, data: BaseModel) -> Any:
         return cls.db_model(**data.model_dump())

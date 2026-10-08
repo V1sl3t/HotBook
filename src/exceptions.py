@@ -1,99 +1,104 @@
 from datetime import date
 
-from fastapi import HTTPException
-
 
 class HotBookException(Exception):
-    detail = "Неожиданная ошибка"
+    """Базовое доменное исключение.
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(self.detail, *args, **kwargs)
+    Глобальный обработчик в ``src.main`` превращает его в HTTP-ответ
+    с ``status_code`` и ``detail`` текущего класса.
+    """
+
+    status_code: int = 500
+    detail: str = "Неожиданная ошибка"
+
+    def __init__(self, detail: str | None = None) -> None:
+        if detail is not None:
+            self.detail = detail
+        super().__init__(self.detail)
 
 
 class ObjectNotFoundException(HotBookException):
+    status_code = 404
     detail = "Объект не найден"
-
-
-class IncorrectPasswordException(HotBookException):
-    detail = "Неверный пароль"
-
-
-class IncorrectTokenException(HotBookException):
-    detail = "Невалидный токен"
 
 
 class UserNotFoundException(ObjectNotFoundException):
     detail = "Пользователь не найден"
 
 
-class RoomNotFoundException(ObjectNotFoundException):
-    detail = "Номер не найден"
-
-
 class HotelNotFoundException(ObjectNotFoundException):
     detail = "Отель не найден"
 
 
-class AllRoomsAreBookedException(HotBookException):
-    detail = "Все номера забронированы"
+class RoomNotFoundException(ObjectNotFoundException):
+    detail = "Номер не найден"
+
+
+class ComfortNotFoundException(ObjectNotFoundException):
+    detail = "Удобство не найдено"
 
 
 class ObjectAlreadyExistsException(HotBookException):
+    status_code = 409
     detail = "Похожий объект уже существует"
 
 
 class UserAlreadyExistsException(ObjectAlreadyExistsException):
-    detail = "Такой пользователь уже существует"
+    detail = "Пользователь с такой почтой уже существует"
 
 
-def check_date_to_after_date_from(date_from: date, date_to: date) -> None:
-    if date_to <= date_from:
-        raise HTTPException(status_code=422, detail="Дата заезда не может быть позже даты выезда")
+class ObjectInUseException(HotBookException):
+    status_code = 409
+    detail = "Объект используется другими данными и не может быть изменён или удалён"
 
 
-class HotBookHTTPException(HTTPException):
-    status_code = 500
-    detail = None
-
-    def __init__(self):
-        super().__init__(status_code=self.status_code, detail=self.detail)
-
-
-class HotelNotFoundHTTPException(HotBookHTTPException):
-    status_code = 404
-    detail = "Отель не найден"
-
-
-class RoomNotFoundHTTPException(HotBookHTTPException):
-    status_code = 404
-    detail = "Номер не найден"
-
-
-class AllRoomsAreBookedHTTPException(HotBookHTTPException):
+class AllRoomsAreBookedException(HotBookException):
     status_code = 409
     detail = "Все номера забронированы"
 
 
-class UserEmailAlreadyExistsHTTPException(HotBookHTTPException):
-    status_code = 409
-    detail = "Пользователь с такой почтой уже существует"
+class InvalidDateRangeException(HotBookException):
+    status_code = 422
+    detail = "Дата выезда должна быть позже даты заезда"
 
 
-class IncorrectTokenHTTPException(HotBookHTTPException):
-    status_code = 404
+class InvalidImageException(HotBookException):
+    status_code = 422
+    detail = "Файл не является изображением JPEG, PNG или WEBP"
+
+
+class FileTooLargeException(HotBookException):
+    status_code = 413
+    detail = "Файл слишком большой"
+
+
+class AuthException(HotBookException):
+    status_code = 401
+    detail = "Требуется авторизация"
+
+
+class InvalidCredentialsException(AuthException):
+    detail = "Неверный email или пароль"
+
+
+class IncorrectTokenException(AuthException):
     detail = "Невалидный токен"
 
 
-class UserNotFoundHTTPException(HotBookHTTPException):
-    status_code = 404
-    detail = "Пользователь с таким email не найден"
-
-
-class IncorrectPasswordHTTPException(HotBookHTTPException):
-    status_code = 401
-    detail = "Неверный пароль"
-
-
-class NoAccessTokenHTTPException(HotBookHTTPException):
-    status_code = 401
+class NoAccessTokenException(AuthException):
     detail = "Не предоставлен access токен"
+
+
+class PermissionDeniedException(HotBookException):
+    status_code = 403
+    detail = "Недостаточно прав"
+
+
+class TooManyRequestsException(HotBookException):
+    status_code = 429
+    detail = "Слишком много попыток, попробуйте позже"
+
+
+def check_date_to_after_date_from(date_from: date, date_to: date) -> None:
+    if date_to <= date_from:
+        raise InvalidDateRangeException

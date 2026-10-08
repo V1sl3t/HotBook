@@ -1,52 +1,56 @@
 import asyncio
 import logging
-import os
-from time import sleep
+from pathlib import Path
 
 from PIL import Image
 
 from src.db import async_session_maker_null_pool
+from src.schemas.bookings import Booking
+from src.services.images import images_dir
 from src.tasks.celery_app import celery_manager
 from src.utils.db_manager import DBManager
+from src.utils.email import send_email
+
+logger = logging.getLogger(__name__)
+
+IMAGE_WIDTHS = (1000, 500, 200)
 
 
 @celery_manager.task
-def test_task():
-    sleep(5)
-    print("Я молодец")
+def resize_image(filename: str) -> list[str]:
+    """Создаёт уменьшенные копии картинки; узкие картинки не растягиваются."""
+    directory = images_dir()
+    source = directory / Path(filename).name
+    saved: list[str] = []
+    with Image.open(source) as img:
+        for width in IMAGE_WIDTHS:
+            if img.width <= width:
+                continue
+            height = max(1, round(img.height * width / img.width))
+            resized = img.resize((width, height), Image.Resampling.LANCZOS)
+            new_name = f"{source.stem}_{width}px{source.suffix}"
+            resized.save(directory / new_name, format=img.format)
+            saved.append(new_name)
+    logger.info("Изображение %s: созданы копии %s", source.name, saved)
+    return saved
 
 
-@celery_manager.task
-def resize_image(image_path: str):
-    logging.debug(f"Вызывается функция image_path с {image_path=}")
-    sizes = [1000, 500, 200]
-    output_folder = "src/static/images"
-    # Открываем изображение
-    img = Image.open(image_path)
-    # Получаем имя файла и его расширение
-    base_name = os.path.basename(image_path)
-    name, ext = os.path.splitext(base_name)
-    # Проходим по каждому размеру
-    for size in sizes:
-        # Сжимаем изображение
-        img_resized = img.resize(
-            (size, int(img.height * (size / img.width))), Image.Resampling.LANCZOS
-        )
-        # Формируем имя нового файла
-        new_file_name = f"{name}_{size}px{ext}"
-        # Полный путь для сохранения
-        output_path = os.path.join(output_folder, new_file_name)
-        # Сохраняем изображение
-        img_resized.save(output_path)
-    logging.info(f"Изображение сохранено в следующих размерах: {sizes} в папке {output_folder}")
-
-
-async def get_bookings_with_today_checkin_helper():
+async def get_bookings_with_today_checkin() -> list[tuple[Booking, str]]:
     async with DBManager(session_factory=async_session_maker_null_pool) as db:
-        bookings = await db.bookings.get_bookings_with_today_checkin()
-        logging.debug(f"{bookings=}")
+        return await db.bookings.get_bookings_with_today_checkin()
 
 
 @celery_manager.task(name="booking_today_checkin")
-def send_emails_to_users_with_today_checkin():
-    asyncio.run(get_bookings_with_today_checkin_helper())
+def send_emails_to_users_with_today_checkin() -> int:
+    bookings = asyncio.run(get_bookings_with_today_checkin())
+    for booking, email in bookings:
+        send_email(
+            to=email,
+            subject="HotBook: сегодня заезд",
+            body=(
+                f"Напоминаем: сегодня заезд по брони №{booking.id} "
+                f"({booking.date_from:%d.%m.%Y} — {booking.date_to:%d.%m.%Y})."
+            ),
+        )
+    logger.info("Отправлено напоминаний о заезде: %s", len(bookings))
+    return len(bookings)

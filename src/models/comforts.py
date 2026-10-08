@@ -1,12 +1,12 @@
-import typing
+from typing import TYPE_CHECKING
 
+from sqlalchemy import ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import String, ForeignKey
 
 from src.db import Base
 
-if typing.TYPE_CHECKING:
-    from src.models import RoomsOrm
+if TYPE_CHECKING:
+    from src.models.rooms import RoomsOrm
 
 
 class ComfortsOrm(Base):
@@ -24,5 +24,9 @@ class RoomsComfortsOrm(Base):
     __tablename__ = "rooms_comforts"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    room_id: Mapped[int] = mapped_column(ForeignKey("rooms.id"))
-    comfort_id: Mapped[int] = mapped_column(ForeignKey("comforts.id"))
+    room_id: Mapped[int] = mapped_column(ForeignKey("rooms.id", ondelete="CASCADE"))
+    comfort_id: Mapped[int] = mapped_column(ForeignKey("comforts.id", ondelete="CASCADE"))
+
+    __table_args__ = (
+        UniqueConstraint("room_id", "comfort_id", name="uq_rooms_comforts_room_comfort"),
+    )
