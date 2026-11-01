@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM python:3.13-slim AS builder
+FROM python:3.15-slim AS builder
 
 COPY --from=ghcr.io/astral-sh/uv:0.11.32 /uv /bin/uv
 
@@ -17,7 +17,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --no-install-project
 
 
-FROM python:3.13-slim
+FROM python:3.15-slim
 
 RUN groupadd --system app && useradd --system --gid app --home-dir /app app
 
